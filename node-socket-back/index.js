@@ -8,7 +8,7 @@ app.use(cors());
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3001",
+    origin: "*",
     methods: ["GET", "POST"],
   },
 });
@@ -18,16 +18,11 @@ app.get("/", (req, res) => {
 });
 
 io.on("connection", socket => {
-  socket.on("enter", (msg, done) => {
+  socket.join("room");
+  socket.on("enter", msg => {
     console.log(msg);
-    done();
+    socket.to("room").emit("post", msg);
   });
-
-  socket.on("disconnect", () => {
-    console.log("she's gone");
-  });
-
-  console.log("a user connected");
 });
 
 server.listen(3030, () => {
