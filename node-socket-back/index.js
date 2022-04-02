@@ -20,7 +20,7 @@ app.get("/", (req, res) => {
 io.on("connection", socket => {
   socket.join("room");
   socket.on("enter", msg => {
-    console.log(msg);
+    console.log(msg, socket.id);
     socket.to("room").emit("post", msg);
   });
 });

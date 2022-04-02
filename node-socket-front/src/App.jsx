@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import io from "socket.io-client";
 
+const socket = io("http://10.80.163.234:3030/");
 function App() {
   const [text, setText] = useState("");
   const [chatList, setChatList] = useState([]);
-  const socket = io("http://10.80.163.234:3030/");
-  const a = [];
   useEffect(() => {
     socket.on("post", msg => {
+      console.log(...chatList);
       setChatList(list => [...list, msg]);
     });
     return () => {
@@ -22,6 +22,7 @@ function App() {
         onSubmit={e => {
           e.preventDefault();
           setText("");
+          setChatList(list => [...list, text]);
           socket.emit("enter", text);
         }}
       >
