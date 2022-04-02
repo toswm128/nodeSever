@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 
-const socket = io("http://10.80.163.234:3030/");
+const socket = io("http://localhost:3030/");
 function App() {
   const [text, setText] = useState("");
   const [name, setName] = useState("");
+  const [audio, setAudio] = useState(true);
+  const [video, setVideo] = useState(true);
   const [chatList, setChatList] = useState([]);
   const divRef = useRef();
   const myStream = useRef(null);
@@ -25,17 +27,40 @@ function App() {
         video: true,
       });
       myStream.current.srcObject = stream;
+      console.log(stream);
     } catch (e) {
       console.log(e);
     }
   };
-
-  getMedia();
-
+  useEffect(() => {
+    getMedia();
+  }, []);
   return (
     <div className="App">
       <h1>My chat room</h1>
       <video ref={myStream} autoPlay playsInline width="400"></video>
+      <button
+        onClick={() => {
+          setVideo(!video);
+          myStream.current.srcObject.getVideoTracks().forEach(treak => {
+            treak.enabled = !treak.enabled;
+            console.log(treak);
+          });
+        }}
+      >
+        캠
+      </button>
+      <button
+        onClick={() => {
+          setAudio(!audio);
+          myStream.current.srcObject.getAudioTracks().forEach(treak => {
+            treak.enabled = !treak.enabled;
+            console.log(treak);
+          });
+        }}
+      >
+        소리
+      </button>
       <input
         type="text"
         placeholder="이름을 입력해 주세요"
