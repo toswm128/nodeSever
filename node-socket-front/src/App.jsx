@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 
-const socket = io("http://localhost:3030/");
+const socket = io("http://10.80.161.46:3030/");
 const peer = new RTCPeerConnection();
 function App() {
   const [text, setText] = useState("");
@@ -11,6 +11,7 @@ function App() {
   const [chatList, setChatList] = useState([]);
   const divRef = useRef();
   const myStream = useRef(null);
+  const anotherStream = useRef(null);
 
   useEffect(() => {
     socket.on("post", data => {
@@ -38,11 +39,20 @@ function App() {
       console.log("ice 받음");
       peer.addIceCandidate(ice);
     });
+
+    peer.addEventListener("addstream", data => {
+      console.log("got data");
+      console.log(data);
+      anotherStream.current.srcObject = data.stream;
+    });
+
     return () => {
       socket.off("post");
       socket.off("postOffer");
       socket.off("postAnswer");
+      socket.off("postIce");
       peer.removeEventListener("icecandidate");
+      peer.removeEventListener("addstream");
     };
   }, []);
 
@@ -77,6 +87,7 @@ function App() {
     <div className="App">
       <h1>My chat room</h1>
       <video ref={myStream} autoPlay playsInline width="400"></video>
+      <video ref={anotherStream} autoPlay playsInline width="400"></video>
       <button
         onClick={() => {
           setVideo(!video);
