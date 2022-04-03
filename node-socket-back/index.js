@@ -19,6 +19,16 @@ app.get("/", (req, res) => {
 
 io.on("connection", socket => {
   socket.join("room");
+  socket.on("getOffer", data => {
+    socket.to("room").emit("postOffer", data);
+  });
+  socket.on("getAnswer", data => {
+    socket.to("room").emit("postAnswer", data);
+  });
+  socket.on("getIce", ice => {
+    socket.to("room").emit("postIce", ice);
+  });
+
   socket.on("enter", data => {
     console.log(data.text, socket.id);
     socket.to("room").emit("post", data);

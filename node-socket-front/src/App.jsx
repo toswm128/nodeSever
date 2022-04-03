@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 
 const socket = io("http://localhost:3030/");
+const peer = new RTCPeerConnection();
 function App() {
   const [text, setText] = useState("");
   const [name, setName] = useState("");
@@ -10,13 +11,38 @@ function App() {
   const [chatList, setChatList] = useState([]);
   const divRef = useRef();
   const myStream = useRef(null);
+
   useEffect(() => {
     socket.on("post", data => {
       console.log(...chatList);
       setChatList(list => [...list, data]);
     });
+    socket.on("postOffer", async data => {
+      console.log("offer받음");
+      peer.setRemoteDescription(data);
+      const answer = await peer.createAnswer();
+      peer.setLocalDescription(answer);
+      socket.emit("getAnswer", answer);
+      console.log("answer 보냄");
+    });
+    socket.on("postAnswer", data => {
+      console.log("answer 받음");
+      peer.setRemoteDescription(data);
+    });
+    peer.addEventListener("icecandidate", data => {
+      socket.emit("getIce", data.candidate);
+      console.log("ice 보냄");
+    });
+
+    socket.on("postIce", ice => {
+      console.log("ice 받음");
+      peer.addIceCandidate(ice);
+    });
     return () => {
       socket.off("post");
+      socket.off("postOffer");
+      socket.off("postAnswer");
+      peer.removeEventListener("icecandidate");
     };
   }, []);
 
@@ -27,14 +53,26 @@ function App() {
         video: true,
       });
       myStream.current.srcObject = stream;
-      console.log(stream);
     } catch (e) {
       console.log(e);
     }
   };
+
+  const connectPeer = async () => {
+    await getMedia();
+    myStream.current.srcObject.getTracks().forEach(treak => {
+      peer.addTrack(treak, myStream.current.srcObject);
+    });
+    const offer = await peer.createOffer();
+    peer.setLocalDescription(offer);
+    socket.emit("getOffer", offer);
+    console.log("offer보냄");
+  };
+
   useEffect(() => {
-    getMedia();
+    connectPeer();
   }, []);
+
   return (
     <div className="App">
       <h1>My chat room</h1>
@@ -44,7 +82,6 @@ function App() {
           setVideo(!video);
           myStream.current.srcObject.getVideoTracks().forEach(treak => {
             treak.enabled = !treak.enabled;
-            console.log(treak);
           });
         }}
       >
@@ -55,7 +92,6 @@ function App() {
           setAudio(!audio);
           myStream.current.srcObject.getAudioTracks().forEach(treak => {
             treak.enabled = !treak.enabled;
-            console.log(treak);
           });
         }}
       >
