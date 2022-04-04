@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 
-const socket = io("http://10.80.161.46:3030/");
+const socket = io("https://dry-badger-71.loca.lt");
 const peer = new RTCPeerConnection();
 function App() {
   const [text, setText] = useState("");
