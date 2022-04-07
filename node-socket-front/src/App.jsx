@@ -1,34 +1,47 @@
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 
-const socket = io("https://dry-badger-71.loca.lt");
+const socket = io("http://localhost:3030");
 const peer = new RTCPeerConnection();
 function App() {
   const [text, setText] = useState("");
+  const [room, setRoom] = useState("");
   const [name, setName] = useState("");
   const [audio, setAudio] = useState(true);
   const [video, setVideo] = useState(true);
   const [chatList, setChatList] = useState([]);
   const divRef = useRef();
-  const myStream = useRef(null);
-  const anotherStream = useRef(null);
+  const streams = useRef();
+  const [members, setMembers] = useState([0]);
+  const myStream = useRef([]);
+  const [onStream, setOnStream] = useState(false);
 
   useEffect(() => {
     socket.on("post", data => {
       console.log(...chatList);
       setChatList(list => [...list, data]);
     });
+    socket.on("comeRoom", data => {
+      console.log(data, "방에 들어왔습니다");
+      connectPeer();
+    });
     socket.on("postOffer", async data => {
-      console.log("offer받음");
-      peer.setRemoteDescription(data);
+      peer.setRemoteDescription(data).then(() => {
+        console.log("remote 성공");
+      });
       const answer = await peer.createAnswer();
+      console.log("offer받음");
       peer.setLocalDescription(answer);
-      socket.emit("getAnswer", answer);
       console.log("answer 보냄");
+      console.log("offer", data, "answer", answer);
+      socket.emit("getAnswer", answer);
     });
     socket.on("postAnswer", data => {
       console.log("answer 받음");
-      peer.setRemoteDescription(data);
+      console.log(data);
+      peer.setRemoteDescription(data).then(dd => {
+        console.log("remote 성공");
+      });
     });
     peer.addEventListener("icecandidate", data => {
       socket.emit("getIce", data.candidate);
@@ -40,19 +53,36 @@ function App() {
       peer.addIceCandidate(ice);
     });
 
-    peer.addEventListener("addstream", data => {
+    peer.ontrack = data => {
       console.log("got data");
       console.log(data);
-      anotherStream.current.srcObject = data.stream;
+      streams.current.srcObject = data.streams[0];
+    };
+    // peer.addEventListener("track", data => {
+    //   console.log("got data");
+    //   console.log(data);
+    //   streams.current.srcObject = data.streams[0];
+    //   // let cnt = 1;
+    //   // data.streams.forEach(stream => {
+    //   //   streams.current[cnt].srcObject = stream;
+    //   //   cnt = cnt + 1;
+    //   // });
+    //   // streams.current[1].srcObject = data.streams;
+    //   // console.log(streams.current[1].srcObject);
+    //   // setMembers(prev => [...prev, prev.length]);
+    // });
+
+    peer.addEventListener("connectionstatechange", data => {
+      // console.log(data);
     });
 
     return () => {
       socket.off("post");
+      socket.off("comeRoom");
       socket.off("postOffer");
       socket.off("postAnswer");
       socket.off("postIce");
-      peer.removeEventListener("icecandidate");
-      peer.removeEventListener("addstream");
+      peer.removeEventListener("icecandidate", () => console.log("return"));
     };
   }, []);
 
@@ -63,82 +93,116 @@ function App() {
         video: true,
       });
       myStream.current.srcObject = stream;
+      stream.getTracks().forEach(treak => {
+        peer.addTrack(treak, stream);
+      });
+      console.log(streams);
+      socket.emit("goRoom", room);
     } catch (e) {
       console.log(e);
     }
   };
 
   const connectPeer = async () => {
-    await getMedia();
-    myStream.current.srcObject.getTracks().forEach(treak => {
-      peer.addTrack(treak, myStream.current.srcObject);
-    });
     const offer = await peer.createOffer();
     peer.setLocalDescription(offer);
+    console.log(offer);
     socket.emit("getOffer", offer);
     console.log("offer보냄");
   };
 
-  useEffect(() => {
-    connectPeer();
-  }, []);
-
   return (
     <div className="App">
       <h1>My chat room</h1>
-      <video ref={myStream} autoPlay playsInline width="400"></video>
-      <video ref={anotherStream} autoPlay playsInline width="400"></video>
-      <button
-        onClick={() => {
-          setVideo(!video);
-          myStream.current.srcObject.getVideoTracks().forEach(treak => {
-            treak.enabled = !treak.enabled;
-          });
-        }}
-      >
-        캠
-      </button>
-      <button
-        onClick={() => {
-          setAudio(!audio);
-          myStream.current.srcObject.getAudioTracks().forEach(treak => {
-            treak.enabled = !treak.enabled;
-          });
-        }}
-      >
-        소리
-      </button>
-      <input
-        type="text"
-        placeholder="이름을 입력해 주세요"
-        value={name}
-        onChange={e => {
-          setName(e.target.value);
-        }}
-      />
-      <form
-        onSubmit={e => {
-          e.preventDefault();
-          setText("");
-          setChatList(list => [...list, { name: name ? name : "ㅇㅇ", text }]);
-          socket.emit("enter", { text, name });
-        }}
-      >
-        <input
-          placeholder="내용을 입력해 주세요"
-          value={text}
-          onChange={e => {
-            setText(e.target.value);
+      {!onStream ? (
+        <form
+          onSubmit={async e => {
+            e.preventDefault();
+            setOnStream(true);
+            await getMedia();
           }}
-        />
-      </form>
-      <div>
-        {chatList.map(({ name, text }, key) => (
-          <div ref={key ? divRef : null} key={key}>
-            {name}: {text}
+        >
+          <input
+            type="text"
+            value={room}
+            placeholder="방이름을 입력해주세요"
+            onChange={e => {
+              setRoom(e.target.value);
+            }}
+          />
+        </form>
+      ) : (
+        <>
+          <video
+            ref={elem => (myStream.current = elem)}
+            onClick={e => console.log(e.target.srcObject)}
+            autoPlay
+            playsInline
+            width="400"
+          ></video>
+          <video
+            ref={elem => (streams.current = elem)}
+            onClick={e => console.log(e.target.srcObject)}
+            autoPlay
+            playsInline
+            width="400"
+          ></video>
+          <button
+            onClick={() => {
+              setVideo(!video);
+              myStream.current.srcObject.getVideoTracks().forEach(treak => {
+                treak.enabled = !treak.enabled;
+              });
+            }}
+          >
+            {video ? "캠 끄기" : "캠 켜기"}
+          </button>
+          <button
+            onClick={() => {
+              setAudio(!audio);
+              myStream.current.srcObject.getAudioTracks().forEach(treak => {
+                treak.enabled = !treak.enabled;
+              });
+            }}
+          >
+            {audio ? "음소거" : "마이크 켜기"}
+          </button>
+          <input
+            type="text"
+            placeholder="이름을 입력해 주세요"
+            value={name}
+            onChange={e => {
+              setName(e.target.value);
+            }}
+          />
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              setText("");
+              setChatList(list => [
+                ...list,
+                { name: name ? name : "ㅇㅇ", text },
+              ]);
+              socket.emit("enter", { text, name, room });
+            }}
+          >
+            <input
+              placeholder="내용을 입력해 주세요"
+              value={text}
+              onChange={e => {
+                setText(e.target.value);
+              }}
+            />
+          </form>
+          <div>
+            {chatList.map(({ name, text }, key) => (
+              <div ref={key ? divRef : null} key={key}>
+                {name}: {text}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
 }
